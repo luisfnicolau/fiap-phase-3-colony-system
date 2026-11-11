@@ -142,4 +142,4 @@ O relatório em PDF está em [`relatorio/Relatorio_Fase3_Sistema_Colonia.pdf`](r
 
 ## Autor
 
-Luis Felipe Moraes Nicolau — FIAP, Ciência da Computação (1CCOS), 2026/2.
+Grupo 42: Luis Felipe Moraes Nicolau — FIAP, Ciência da Computação (1CCOS), 2026/2.
