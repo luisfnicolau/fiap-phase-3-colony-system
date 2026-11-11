@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Relatório Fase 3 – Sistema Inteligente da Colônia</title>
+<style>
+  @page { size: A4; margin: 18mm 18mm 18mm 18mm; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; color: #1d1d1f; }
+  h1 { font-size: 18pt; margin: 0 0 4px; }
+  h2 { break-after: avoid; page-break-after: avoid; font-size: 13pt; margin: 18px 0 6px; border-bottom: 1.5px solid #c0392b; padding-bottom: 2px; }
+  h3 { font-size: 11pt; margin: 12px 0 4px; }
+  .sub { color: #555; margin: 0 0 14px; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 10px; font-size: 9.5pt; }
+  th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #f3eeee; }
+  td.n, th.n { text-align: right; }
+  pre, code { font-family: Menlo, Consolas, monospace; font-size: 8.8pt; }
+  pre { background: #f6f6f6; border: 1px solid #e2e2e2; padding: 6px 8px; white-space: pre-wrap; margin: 6px 0; }
+  .box { background: #fbf6f5; border-left: 3px solid #c0392b; padding: 6px 10px; margin: 8px 0; }
+  ul { margin: 4px 0 8px 18px; padding: 0; }
+  li { margin: 2px 0; }
+  .avoid { page-break-inside: avoid; }
+  a { color: #c0392b; }
+</style>
+</head>
+<body>
+
+<h1>Sistema Inteligente da Colônia Aurora Siger</h1>
+<p class="sub">FIAP · Ciência da Computação (1CCOS) · 2026/2 · Fase 3, atividade do Cap 1<br>
+Aluno: Luis Felipe Moraes Nicolau<br>
+Repositório: <a href="https://github.com/luisfnicolau/fiap-phase-3-colony-system">github.com/luisfnicolau/fiap-phase-3-colony-system</a></p>
+
+<div class="box">
+<b>Resumo.</b> A latência entre Marte e a Terra impede que a colônia espere ordens. O sistema lê os
+sensores (geração solar e eólica, vento, irradiância, temperaturas, consumo por módulo e estado dos
+equipamentos) e decide sozinho o que ligar e desligar. Também usa regressão linear para prever a
+geração do ciclo seguinte e agir antes de a energia faltar. É Python puro, organizado em funções,
+com dados, lógica e decisões em arquivos separados.
+</div>
+
+<div class="avoid"><h2>1. Como os dados foram organizados</h2>
+<table>
+<tr><th>Estrutura</th><th>Onde é usada</th><th>Por quê</th></tr>
+<tr><td><b>Listas</b></td><td>Séries históricas da regressão (<code>vento = [8, 10, 12]</code>, <code>energia = [20, 25, 30]</code>) e a sequência de leituras dos ciclos</td><td>Os dados têm ordem. Listas paralelas ligam cada x ao seu y pela posição.</td></tr>
+<tr><td><b>Dicionários</b> (chave-valor, tabela hash)</td><td>Cada leitura (<code>"solar"</code>, <code>"temp_interna"</code>…), o consumo por módulo (<code>{"oxigenio": 10, …}</code>) e o estado dos equipamentos</td><td>O acesso pelo nome da grandeza é direto: o Python calcula o hash da chave, em tempo médio O(1).</td></tr>
+<tr><td><b>Árvore</b></td><td>Hierarquia de sistemas: Colônia → Sistema energético → Solar / Eólico / Baterias; Suporte à vida; Comunicação; Produção; Habitação</td><td>Mostra quem pertence a quem e permite navegar por subsistemas, como <code>buscar_por_caminho(colonia, ["Sistema energético", "Solar"])</code>.</td></tr>
+<tr><td><b>Índice</b> id → módulo</td><td>Montado a partir das folhas da árvore</td><td>Une as duas estruturas: a árvore guarda a hierarquia, o índice permite consultas diretas.</td></tr>
+</table></div>
+<p>Cada módulo consumidor é uma folha com <code>essencial</code> (verdadeiro ou falso) e <code>prioridade</code>.
+Os essenciais são oxigênio, água, controle térmico e comunicação. Os não essenciais, na ordem em que são
+desligados, são: oficina de mineração (p1), iluminação das áreas comuns (p2), laboratório (p3) e estufa (p4).
+Essa ordem é obtida percorrendo a árvore de forma recursiva e ordenando por prioridade (insertion sort).</p>
+
+<div class="avoid"><h2>2. Regras de decisão</h2>
+<table>
+<tr><th>#</th><th>Condição</th><th>Ação</th></tr>
+<tr><td>1</td><td>Sempre</td><td>Suporte à vida e comunicação ficam ligados. Eles nunca entram na lista de corte.</td></tr>
+<tr><td>2</td><td>energia &lt; 50 <b>E</b> consumo &gt; 60</td><td><code>ALERTA: reduzir consumo</code> + <b>modo economia</b>: desliga todos os não essenciais</td></tr>
+<tr><td>3</td><td>energia &lt; 50</td><td><code>AVISO: energia baixa</code>: desliga não essenciais, da menor prioridade para a maior, até o consumo caber na geração</td></tr>
+<tr><td>4</td><td>consumo &gt; geração</td><td>Equilibra do mesmo jeito da regra 3</td></tr>
+<tr><td>5</td><td>temperatura interna &lt; 18 °C ou &gt; 26 °C</td><td>Aumenta o aquecimento ou o resfriamento (controle térmico é essencial)</td></tr>
+<tr><td>6</td><td>equipamento em FALHA</td><td>Alerta de manutenção. A previsão deixa de contar com aquele gerador.</td></tr>
+<tr><td>—</td><td>nem os essenciais cabem na geração</td><td><code>ALERTA CRÍTICO</code>: cobrir a diferença com as baterias</td></tr>
+</table></div>
+<p>As regras 2 e 3 são avaliadas com <code>if / elif</code>, da mais específica para a mais geral. Por isso o caso
+combinado (energia baixa <i>e</i> consumo alto) tem uma resposta mais forte que a regra básica. Em notação booleana,
+modo economia = B·A, em que B = energia &lt; 50 e A = consumo &gt; 60. A regra 3 vale para B·¬A.</p>
+<p><b>Análise de energia.</b> Consumo &gt; geração gera <code>ALERTA: consumo maior que geração</code> (risco).
+Uma sobra de mais de 5 kW gera <code>SUGESTÃO: armazenar energia excedente</code> (possível desperdício).
+Uma diferença menor que isso conta como equilíbrio.</p>
+
+<h2>3. Modelo de previsão</h2>
+<p>Regressão linear simples <b>y = a + b·x</b>, ajustada à mão pelo método dos mínimos quadrados, sem bibliotecas:</p>
+<pre>b = Σ(xi − x̄)(yi − ȳ) / Σ(xi − x̄)²        a = ȳ − b·x̄        R² = 1 − SQres / SQtot</pre>
+<div class="avoid">
+<h3>Cálculo com os dados do enunciado (vento × energia eólica)</h3>
+<table>
+<tr><th class="n">x (vento, m/s)</th><th class="n">y (energia, kW)</th><th class="n">x − x̄</th><th class="n">y − ȳ</th><th class="n">(x − x̄)(y − ȳ)</th><th class="n">(x − x̄)²</th></tr>
+<tr><td class="n">8</td><td class="n">20</td><td class="n">−2</td><td class="n">−5</td><td class="n">10</td><td class="n">4</td></tr>
+<tr><td class="n">10</td><td class="n">25</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td></tr>
+<tr><td class="n">12</td><td class="n">30</td><td class="n">2</td><td class="n">5</td><td class="n">10</td><td class="n">4</td></tr>
+<tr><th class="n">x̄ = 10</th><th class="n">ȳ = 25</th><th></th><th></th><th class="n">Σ = 20</th><th class="n">Σ = 8</th></tr>
+</table>
+<p>b = 20 / 8 = <b>2,5</b> e a = 25 − 2,5 × 10 = <b>0</b>. Logo, energia = 2,5 × vento. Para vento = 11 m/s,
+energia = <b>27,5 kW</b> (o enunciado aproxima para ≈ 27). R² = 1, porque os três pontos estão alinhados.</p>
+</div>
+<p>O mesmo método foi aplicado à energia solar em função da irradiância (200, 400, 600 e 800 W/m² → 10, 21, 29 e 41 kW).
+O resultado é energia = 0,0505 × irradiância, com R² = 0,995.</p>
+<p><b>Como a previsão vira ação.</b> Em cada ciclo, o sistema aplica os dois modelos à previsão do tempo para o
+ciclo seguinte e soma as duas gerações. Um gerador em falha não entra na conta. Se o total previsto ficar abaixo
+do consumo atual, o sistema avisa naquele ciclo, para carregar as baterias e adiar tarefas não essenciais.
+É isso que transforma o sistema de reativo em preditivo.</p>
+
+<h2>4. Como o sistema melhora o uso de energia</h2>
+<p>A simulação tem seis ciclos. Os ciclos 2 e 3 reproduzem os exemplos do enunciado (40 × 70 e 80 × 30).</p>
+<table class="avoid">
+<tr><th>Ciclo</th><th>Situação</th><th class="n">Geração</th><th class="n">Consumo</th><th>Decisão</th><th class="n">Consumo depois</th></tr>
+<tr><td>1</td><td>Manhã estável</td><td class="n">55</td><td class="n">52</td><td>Equilíbrio; <b>prevê</b> déficit de 14,5 kW para a tempestade do ciclo seguinte</td><td class="n">52</td></tr>
+<tr><td>2</td><td>Tempestade de poeira</td><td class="n">40</td><td class="n">70</td><td>ALERTA: reduzir consumo; modo economia</td><td class="n">30</td></tr>
+<tr><td>3</td><td>Pico de geração</td><td class="n">80</td><td class="n">30</td><td>Armazenar 50 kW excedentes; prevê a noite sem sol</td><td class="n">30</td></tr>
+<tr><td>4</td><td>Noite fria (16 °C dentro)</td><td class="n">20</td><td class="n">45</td><td>Corta iluminação e estufa, aquece o habitat, faltam 14 kW → baterias</td><td class="n">34</td></tr>
+<tr><td>5</td><td>Falha na turbina</td><td class="n">38</td><td class="n">48</td><td>Corta oficina e laboratório, pede manutenção</td><td class="n">28</td></tr>
+<tr><td>6</td><td>Tarde quente (28 °C dentro)</td><td class="n">64</td><td class="n">60</td><td>Resfria; prevê déficit de 27,4 kW no fim da tarde</td><td class="n">60</td></tr>
+</table>
+<ul>
+<li><b>Menos déficit:</b> sem as regras, a colônia teria 65 kW de déficit somados nos ciclos 2, 4 e 5 (30 + 25 + 10).
+Com elas, sobram só os 14 kW do ciclo 4. Essa falta é dos sistemas essenciais e fica coberta pelas baterias. É uma redução de cerca de 78%.</li>
+<li><b>Vida em primeiro lugar:</b> em nenhum ciclo o oxigênio, a água, o controle térmico ou a comunicação foram desligados.
+Os cortes seguem a prioridade: primeiro a oficina, por último a estufa (comida).</li>
+<li><b>Sem desperdício:</b> quando a geração passa do consumo (ciclo 3), o sistema manda guardar a sobra. Essa energia
+cobre a noite que o modelo previu para o ciclo 4.</li>
+<li><b>Antecipação:</b> os avisos dos ciclos 1, 3 e 6 chegam um ciclo antes da queda de geração. Isso dá tempo de
+carregar as baterias em vez de cortar módulos às pressas.</li>
+</ul>
+
+<h3>Limitações</h3>
+<ul>
+<li>A previsão depende da previsão do tempo e não antecipa falhas de equipamento. No ciclo 4, o modelo previu 65,3 kW
+para o ciclo 5, mas a turbina falhou e a geração foi de 38 kW. No ciclo 5, o modelo ignorou a turbina quebrada (40,4 kW),
+mas ela foi consertada e o vento mudou, e a geração real foi de 64 kW. Nos ciclos sem surpresas, o erro ficou entre 0 e 10 kW.</li>
+<li>As séries históricas são curtas (3 e 4 pontos). Uma colônia real precisaria de muito mais dados, e a geração solar
+ao longo do dia não é linear, porque depende do ângulo do Sol.</li>
+<li>Os valores são fictícios e didáticos. A carga das baterias não é simulada: o sistema só indica quando usá-las ou carregá-las.</li>
+</ul>
+
+<h2>5. Código e repositório</h2>
+<p>Repositório público: <a href="https://github.com/luisfnicolau/fiap-phase-3-colony-system">https://github.com/luisfnicolau/fiap-phase-3-colony-system</a></p>
+<table class="avoid">
+<tr><th>Arquivo</th><th>Conteúdo</th></tr>
+<tr><td><code>dados.py</code></td><td>Somente dados: listas históricas, árvore de sistemas, leituras dos sensores</td></tr>
+<tr><td><code>estruturas.py</code></td><td>Navegação recursiva na árvore, índice chave-valor, ordem de desligamento</td></tr>
+<tr><td><code>previsao.py</code></td><td>Média, ajuste da reta, previsão, R², previsão de geração do próximo ciclo</td></tr>
+<tr><td><code>decisoes.py</code></td><td>Regras automáticas e análise de energia</td></tr>
+<tr><td><code>main.py</code></td><td>Executa a simulação: <code>python3 main.py</code></td></tr>
+<tr><td><code>testes.py</code></td><td>Os exemplos do enunciado como testes: <code>python3 testes.py</code></td></tr>
+</table>
+
+</body>
+</html>

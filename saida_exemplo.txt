@@ -1,0 +1,110 @@
+========================================================================
+1. ORGANIZAÇÃO DOS DADOS
+========================================================================
+Hierarquia de sistemas (árvore):
+  Colônia Aurora Siger
+  └─ Sistema energético
+    └─ Solar
+      └─ Painel solar A [gerador]
+      └─ Painel solar B [gerador]
+    └─ Eólico
+      └─ Turbina eólica 1 [gerador]
+    └─ Baterias [armazenamento]
+  └─ Suporte à vida
+    └─ Gerador de oxigênio [essencial]
+    └─ Reciclagem de água [essencial]
+    └─ Controle térmico [essencial]
+  └─ Comunicação
+    └─ Antena Terra-Marte [essencial]
+  └─ Produção
+    └─ Estufa [não essencial, prioridade 4]
+    └─ Laboratório [não essencial, prioridade 3]
+    └─ Oficina de mineração [não essencial, prioridade 1]
+  └─ Habitação
+    └─ Iluminação das áreas comuns [não essencial, prioridade 2]
+
+Navegação: Sistema energético -> Solar -> Painel solar A, Painel solar B
+Índice chave-valor (tabela hash) com 12 itens. Consulta direta indice['oxigenio'] -> Gerador de oxigênio
+
+========================================================================
+2. MODELO DE PREVISÃO (regressão linear simples)
+========================================================================
+Eólico: energia = 0.00 + 2.50 × vento      (R² = 1.000)
+Solar:  energia = 0.00 + 0.0505 × irradiância (R² = 0.995)
+Exemplo do enunciado: vento = 11 m/s -> energia ≈ 27.5 kW
+
+========================================================================
+3. SIMULAÇÃO DOS CICLOS (decisões e análise de energia)
+========================================================================
+
+Ciclo 1: Manhã estável
+  Entrada: geração = 55 kW (solar 30 + eólica 25), consumo = 52 kW, temperatura interna = 21 °C
+  -> PRIORIDADE: suporte à vida e comunicação LIGADOS (28 kW)
+  -> Análise do medido: OK: geração e consumo equilibrados (55 kW contra 52 kW)
+  Previsão do tempo para o próximo ciclo: vento 13 m/s, irradiância 100 W/m² -> geração estimada 37.5 kW
+  -> PREVISÃO: déficit de 14.5 kW no próximo ciclo, carregar baterias agora e adiar tarefas não essenciais
+
+Ciclo 2: Tempestade de poeira
+  Entrada: geração = 40 kW (solar 8 + eólica 32), consumo = 70 kW, temperatura interna = 20 °C
+  -> PRIORIDADE: suporte à vida e comunicação LIGADOS (30 kW)
+  -> ALERTA: reduzir consumo
+  -> MODO ECONOMIA ativado: desligar todos os não essenciais
+  -> DESLIGAR: Oficina de mineração (10 kW), Iluminação das áreas comuns (6 kW), Laboratório (14 kW), Estufa (10 kW)
+  -> Consumo após a ação: 30 kW (antes: 70 kW)
+  -> Análise do medido: ALERTA: consumo maior que geração (70 kW contra 40 kW)
+  Previsão do tempo para o próximo ciclo: vento 12 m/s, irradiância 800 W/m² -> geração estimada 70.4 kW
+  -> PREVISÃO: geração suficiente no próximo ciclo (sobra de 0.4 kW)
+
+Ciclo 3: Pico de geração
+  Entrada: geração = 80 kW (solar 45 + eólica 35), consumo = 30 kW, temperatura interna = 22 °C
+  -> PRIORIDADE: suporte à vida e comunicação LIGADOS (26 kW)
+  -> Análise do medido: SUGESTÃO: armazenar energia excedente (50 kW sobrando)
+  Previsão do tempo para o próximo ciclo: vento 8 m/s, irradiância 0 W/m² -> geração estimada 20.0 kW
+  -> PREVISÃO: déficit de 10.0 kW no próximo ciclo, carregar baterias agora e adiar tarefas não essenciais
+
+Ciclo 4: Noite fria
+  Entrada: geração = 20 kW (solar 0 + eólica 20), consumo = 45 kW, temperatura interna = 16 °C
+  -> PRIORIDADE: suporte à vida e comunicação LIGADOS (34 kW)
+  -> AVISO: energia baixa (20 kW), reduzir consumo
+  -> DESLIGAR: Iluminação das áreas comuns (3 kW), Estufa (8 kW)
+  -> Consumo após a ação: 34 kW (antes: 45 kW)
+  -> ALERTA CRÍTICO: faltam 14 kW só para os essenciais, usar as baterias
+  -> AÇÃO: temperatura interna 16 °C, aumentar aquecimento
+  -> Análise do medido: ALERTA: consumo maior que geração (45 kW contra 20 kW)
+  Previsão do tempo para o próximo ciclo: vento 12 m/s, irradiância 700 W/m² -> geração estimada 65.3 kW
+  -> PREVISÃO: geração suficiente no próximo ciclo (sobra de 20.3 kW)
+
+Ciclo 5: Falha na turbina eólica
+  Entrada: geração = 38 kW (solar 38 + eólica 0), consumo = 48 kW, temperatura interna = 22 °C
+  -> PRIORIDADE: suporte à vida e comunicação LIGADOS (28 kW)
+  -> AVISO: energia baixa (38 kW), reduzir consumo
+  -> DESLIGAR: Oficina de mineração (8 kW), Laboratório (12 kW)
+  -> Consumo após a ação: 28 kW (antes: 48 kW)
+  -> ALERTA: turbina_eolica_1 em FALHA, enviar equipe de manutenção
+  -> Análise do medido: ALERTA: consumo maior que geração (48 kW contra 38 kW)
+  Previsão do tempo para o próximo ciclo: vento 11 m/s, irradiância 800 W/m² -> geração estimada 40.4 kW
+  -> PREVISÃO: déficit de 7.6 kW no próximo ciclo, carregar baterias agora e adiar tarefas não essenciais
+
+Ciclo 6: Tarde quente no laboratório
+  Entrada: geração = 64 kW (solar 42 + eólica 22), consumo = 60 kW, temperatura interna = 28 °C
+  -> PRIORIDADE: suporte à vida e comunicação LIGADOS (32 kW)
+  -> AÇÃO: temperatura interna 28 °C, aumentar resfriamento
+  -> Análise do medido: OK: geração e consumo equilibrados (64 kW contra 60 kW)
+  Previsão do tempo para o próximo ciclo: vento 7 m/s, irradiância 300 W/m² -> geração estimada 32.6 kW
+  -> PREVISÃO: déficit de 27.4 kW no próximo ciclo, carregar baterias agora e adiar tarefas não essenciais
+
+========================================================================
+4. RESUMO: previsão feita em um ciclo x geração medida no ciclo seguinte
+========================================================================
+  Ciclo |  Geração |  Consumo |  Previsto p/ próximo
+      1 |       55 |       52 |                 37.5
+      2 |       40 |       70 |                 70.4
+      3 |       80 |       30 |                 20.0
+      4 |       20 |       45 |                 65.3
+      5 |       38 |       48 |                 40.4
+      6 |       64 |       60 |                 32.6
+  Ciclo 1 previu 37.5 kW para o ciclo 2; medido: 40 kW (erro de 2.5 kW)
+  Ciclo 2 previu 70.4 kW para o ciclo 3; medido: 80 kW (erro de 9.6 kW)
+  Ciclo 3 previu 20.0 kW para o ciclo 4; medido: 20 kW (erro de 0.0 kW)
+  Ciclo 4 previu 65.3 kW para o ciclo 5; medido: 38 kW (erro de 27.3 kW)
+  Ciclo 5 previu 40.4 kW para o ciclo 6; medido: 64 kW (erro de 23.6 kW)
